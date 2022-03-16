@@ -14,6 +14,68 @@ from iqoptionapi.stable_api import IQ_Option
 from datetime import datetime
 import time
 import sys
+import math
+
+
+def get_all_opened_assets(iqoapi):
+    return iqoapi.get_all_open_time()
+
+
+def is_asset_open(asset, all_opened_assets, mode='turbo'):
+    return all_opened_assets[mode][asset]["open"]
+
+
+def get_digital_profit(iqoapi, active, expiration):
+    iqoapi.subscribe_strike_list(active, expiration)
+    payout = iqoapi.get_digital_current_profit(active, expiration)
+    while not payout:
+        time.sleep(0.1)
+        payout = iqoapi.get_digital_current_profit(active, expiration)
+    iqoapi.unsubscribe_strike_list(active, expiration)
+    return {'digital': math.floor(payout) / 100}
+
+
+def get_all_profits(iqoapi):
+    return iqoapi.get_all_profit()
+
+
+def most_profit_mode(iqoapi, active, expiration, min_payout):
+    _mpm = ['digital', False]
+
+    all_opened_assets = get_all_opened_assets(iqoapi)
+    opened = dict()
+    for mode in ['turbo', 'digital']:
+        opened[mode] = is_asset_open(active, all_opened_assets, mode)
+    if opened['turbo'] or opened['digital']:
+        profits = get_all_profits(iqoapi)
+        if opened['digital']:
+            if active in profits:
+                profits[active].update(get_digital_profit(iqoapi, active, expiration))
+            else:
+                profits[active] = get_digital_profit(iqoapi, active, expiration)
+        priority_mode_list = []
+        for k, v in opened.items():
+            if v:
+                priority_mode_list.append([k, profits[active][k]])
+        priority_mode_list = sorted(priority_mode_list, key=lambda x: x[1], reverse=True)
+        if priority_mode_list:
+            mode, best_payout = priority_mode_list[0]
+            if best_payout >= min_payout:
+                if mode == 'turbo':
+                    _mpm[0], _mpm[1] = 'turbo', True
+                else:
+                    _mpm[0], _mpm[1] = 'digital', True
+            else:
+                # print(str(datetime.now()), "The payout for " + active + " is below " + str(float(best_payout) * 100) + "%")
+                _mpm[0], _mpm[1] = 'payout', False
+        else:
+            # print(str(datetime.now()), active, "- Something went wrong. No items in your priority list :(")
+            _mpm[0], _mpm[1] = 'error', False
+    else:
+        # print(str(datetime.now()), active + " is closed now. :(")
+        _mpm[0], _mpm[1] = 'closed', False
+
+    return _mpm[0], _mpm[1]
 
 
 def stop(lucro, gain, loss):
@@ -26,25 +88,24 @@ def stop(lucro, gain, loss):
         sys.exit()
 
 
-def SorosGale(perda, payout):
+def soros_gale(perda, payout):
     perda = float(abs(perda))
-    perda += perda/float(1 + payout)
+    perda += perda / float(1 + payout)
     entrada = round(perda, 2)
     return entrada
 
 
-def Martingale(valor, payout):
+def martingale(valor, payout):
     lucro_esperado = valor * payout
     perda = float(valor)
 
     while True:
         if round(valor * payout, 2) > round(abs(perda) + lucro_esperado, 2):
             return round(valor, 2)
-            break
         valor += 0.01
 
 
-def Payout(par):
+def payout(par):
     API.subscribe_strike_list(par, 1)
     while True:
         d = API.get_digital_current_profit(par, 1)
@@ -68,9 +129,9 @@ def VerificaVelas(dir):
     velas[5] = 'g' if velas[5]['open'] < velas[5]['close'] else 'r' if velas[5]['open'] > velas[5]['close'] else 'd'
 
     cores = velas[0] + ' ' + velas[1] + ' ' + velas[2] + ' ' + velas[3] + ' ' + velas[4] + ' ' + velas[5]
-    #print(cores)
-    #print('Velas verdes ', cores.count('g'))
-    #print('Velas vermelhas ', cores.count('r'))
+    # print(cores)
+    # print('Velas verdes ', cores.count('g'))
+    # print('Velas vermelhas ', cores.count('r'))
     direction = dir
     color_candles = 3
     green_count = cores.count('g')
@@ -103,7 +164,6 @@ else:
     # input('\n\n Aperte enter para sair')
     sys.exit()
 
-
 operacao = int(1)  # int(input('\n Deseja operar na\n  1 - Digital\n  2 - Binaria\n  :: '))
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
@@ -118,7 +178,7 @@ stop_loss = float(1100.0)  # float(input(' Indique o valor de Stop Loss: '))
 stop_gain = float(700.0)  # float(input(' Indique o valor de Stop Gain: '))
 
 lucro = 0
-payout = Payout(par)
+payout = payout(par)
 
 while True:
     minutos = float(((datetime.now()).strftime('%M.%S'))[1:])
@@ -181,8 +241,8 @@ while True:
                             print('WIN /' if valor > 0 else 'LOSS /', round(valor, 2), '/', round(lucro, 2),
                                   ('/ ' + str(i) + ' GALE' if i > 0 else ''), ' par ', par, ' id da operacão ', id)
 
-                          # valor_entrada = Martingale(valor_entrada, payout)
-                            valor_entrada = SorosGale(valor, payout)
+                            # valor_entrada = Martingale(valor_entrada, payout)
+                            valor_entrada = soros_gale(valor, payout)
                             print("Novo valor entrada sorosgale ", valor_entrada, ' PAR ', par)
 
                             stop(lucro, stop_gain, stop_loss)
