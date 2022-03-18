@@ -15,6 +15,7 @@ from datetime import datetime
 import time
 import sys
 import math
+import configparser
 
 
 def get_all_opened_assets(iqoapi):
@@ -78,6 +79,10 @@ def most_profit_mode(iqoapi, active, expiration, min_payout):
     return _mpm[0], _mpm[1]
 
 
+def remaining_seconds(minutes):
+    return ((minutes * 60) - ((datetime.now().minute % minutes) * 60 + datetime.now().second)) - 30
+
+
 def stop(lucro, gain, loss):
     if lucro <= float('-' + str(abs(loss))):
         print('Stop Loss batido!')
@@ -118,6 +123,17 @@ def payout(par):
     return d
 
 
+def configure():
+    arquivo = configparser.RawConfigParser()
+    arquivo.read('config.txt')
+
+    return {'sorosgale': arquivo.get('GERAL', 'sorosgale'),
+            'levels': arquivo.get('GERAL', 'levels'),
+            'active': arquivo.get('GERAL', 'active'),
+            'login': arquivo.get('GERAL', 'login'),
+            'password': arquivo.get('GERAL', 'password')}
+
+
 def VerificaVelas(dir):
     velas = API.get_candles(par, 60, 6, time.time())
 
@@ -152,7 +168,15 @@ print('''
  ------------------------------------
 ''')
 
-API = IQ_Option('login', 'senha')
+config = configure()
+
+email = config['login']
+pwd = config['password']
+
+# REAL / PRACTICE
+acc_type = 'PRACTICE'
+
+API = IQ_Option(email, pwd)
 API.connect()
 
 API.change_balance('PRACTICE')  # PRACTICE / REAL
