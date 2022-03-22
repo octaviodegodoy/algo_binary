@@ -18,46 +18,46 @@ import math
 import configparser
 
 
-def get_all_opened_assets(iqoapi):
-    return iqoapi.get_all_open_time()
+def get_all_opened_assets():
+    return API.get_all_open_time()
 
 
 def is_asset_open(asset, all_opened_assets, mode='turbo'):
     return all_opened_assets[mode][asset]["open"]
 
 
-def get_digital_profit(iqoapi, active, expiration):
-    iqoapi.subscribe_strike_list(active, expiration)
-    payout = iqoapi.get_digital_current_profit(active, expiration)
+def get_digital_profit(par, expiration):
+    API.subscribe_strike_list(par, expiration)
+    payout = API.get_digital_current_profit(par, expiration)
     while not payout:
         time.sleep(0.1)
-        payout = iqoapi.get_digital_current_profit(active, expiration)
-    iqoapi.unsubscribe_strike_list(active, expiration)
+        payout = API.get_digital_current_profit(par, expiration)
+    API.unsubscribe_strike_list(par, expiration)
     return {'digital': math.floor(payout) / 100}
 
 
-def get_all_profits(iqoapi):
-    return iqoapi.get_all_profit()
+def get_all_profits():
+    return API.get_all_profit()
 
 
-def most_profit_mode(iqoapi, active, expiration, min_payout):
+def most_profit_mode(par, expiration, min_payout):
     _mpm = ['digital', False]
 
-    all_opened_assets = get_all_opened_assets(iqoapi)
+    all_opened_assets = get_all_opened_assets()
     opened = dict()
     for mode in ['turbo', 'digital']:
-        opened[mode] = is_asset_open(active, all_opened_assets, mode)
+        opened[mode] = is_asset_open(par, all_opened_assets, mode)
     if opened['turbo'] or opened['digital']:
-        profits = get_all_profits(iqoapi)
+        profits = get_all_profits()
         if opened['digital']:
-            if active in profits:
-                profits[active].update(get_digital_profit(iqoapi, active, expiration))
+            if par in profits:
+                profits[par].update(get_digital_profit(par, expiration))
             else:
-                profits[active] = get_digital_profit(iqoapi, active, expiration)
+                profits[par] = get_digital_profit(par, expiration)
         priority_mode_list = []
         for k, v in opened.items():
             if v:
-                priority_mode_list.append([k, profits[active][k]])
+                priority_mode_list.append([k, profits[par][k]])
         priority_mode_list = sorted(priority_mode_list, key=lambda x: x[1], reverse=True)
         if priority_mode_list:
             mode, best_payout = priority_mode_list[0]
@@ -93,21 +93,28 @@ def stop(lucro, gain, loss):
         sys.exit()
 
 
-def soros_gale(perda, payout):
-    perda = float(abs(perda))
-    perda += perda / float(1 + payout)
-    entrada = round(perda, 2)
-    return entrada
+def entradas(par, entrada, direcao, operacao):
+    status, id = API.buy_digital_spot(par, entrada, direcao, 1) if operacao == 1 else API.buy(
+        entrada, par, direcao, 1)
+
+    if status:
+        while True:
+            status, valor = API.check_win_digital_v2(id) if operacao == 1 else API.check_win_v3(id)
+            if status:
+                if valor > 0:
+                    return status, round(valor, 2)
+                else:
+                    return status, round(valor, 2)
+                break
+    else:
+        return False, 0
 
 
-def martingale(valor, payout):
-    lucro_esperado = valor * payout
-    perda = float(valor)
-
-    while True:
-        if round(valor * payout, 2) > round(abs(perda) + lucro_esperado, 2):
-            return round(valor, 2)
-        valor += 0.01
+def soros_gale(valor, entrada):
+    if valor < 0:
+        return abs(valor) / 2
+    elif valor > 0:
+        return entrada + valor
 
 
 def payout(par):
@@ -123,6 +130,29 @@ def payout(par):
     return d
 
 
+def get_payout(par):
+    API.subscribe_strike_list(par, 1)
+    while True:
+        d = API.get_digital_current_profit(par, 1)
+        if d:
+            d = round(int(d) / 100, 2)
+            break
+        time.sleep(1)
+    API.unsubscribe_strike_list(par, 1)
+
+    return d
+
+
+def get_balance():
+    return API.get_balance()
+
+
+def get_initial_amount(payout, amount_by_payout):
+    balance = get_balance()
+    initial_percent = float(amount_by_payout[payout]) / 100
+    return round(initial_percent * balance, 2)
+
+
 def configure():
     arquivo = configparser.RawConfigParser()
     arquivo.read('config.txt')
@@ -134,7 +164,7 @@ def configure():
             'password': arquivo.get('GERAL', 'password')}
 
 
-def VerificaVelas(dir):
+def mhi_strategy(par):
     velas = API.get_candles(par, 60, 6, time.time())
 
     velas[0] = 'g' if velas[0]['open'] < velas[0]['close'] else 'r' if velas[0]['open'] > velas[0]['close'] else 'd'
@@ -145,21 +175,16 @@ def VerificaVelas(dir):
     velas[5] = 'g' if velas[5]['open'] < velas[5]['close'] else 'r' if velas[5]['open'] > velas[5]['close'] else 'd'
 
     cores = velas[0] + ' ' + velas[1] + ' ' + velas[2] + ' ' + velas[3] + ' ' + velas[4] + ' ' + velas[5]
-    # print(cores)
-    # print('Velas verdes ', cores.count('g'))
-    # print('Velas vermelhas ', cores.count('r'))
-    direction = dir
+
     color_candles = 3
     green_count = cores.count('g')
     red_count = cores.count('r')
-    opera = False
     if green_count < color_candles:
-        direction = 'call'
-        opera = True
+        return 'call'
     if red_count < color_candles:
-        direction = 'put'
-        opera = True
-    return opera, direction
+        return 'put'
+    else:
+        return None
 
 
 print('''
@@ -191,9 +216,7 @@ else:
 operacao = int(1)  # int(input('\n Deseja operar na\n  1 - Digital\n  2 - Binaria\n  :: '))
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
-par = 'EURUSD-OTC'  # input(' Indique uma paridade para operar: ').upper()
-valor_entrada = float(5.0)  # float(input(' Indique um valor para entrar: '))
-valor_entrada_b = float(valor_entrada)
+par = 'EURUSD'  # input(' Indique uma paridade para operar: ').upper()
 
 martingale = int(12)  # int(input(' Indique a quantia de martingales: '))
 martingale += 1
@@ -204,74 +227,49 @@ stop_gain = float(700.0)  # float(input(' Indique o valor de Stop Gain: '))
 lucro = 0
 payout = payout(par)
 
+amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.94', '0.78': '0.93', '0.79': '0.91',
+                    '0.80': '0.90', '0.81': '0.88', '0.82': '0.87', '0.83': '0.85', '0.84': '0.84', '0.85': '0.83',
+                    '0.86': '0.82', '0.87': '0.80', '0.88': '0.79', '0.89': '0.78', '0.90': '0.77', '0.91': '0.76',
+                    '0.92': '0.75', '0.93': '0.74', '0.94': '0.73', '0.95': '0.72', '0.96': '0.71', '0.97': '0.70',
+                    '0.98': '0.69', '0.99': '0.68', '100': '0.67'}
+
+valor_entrada = float(5.0)
+perda_acumulada = 0
 while True:
-    minutos = float(((datetime.now()).strftime('%M.%S'))[1:])
-    entrar = True if (minutos >= 4.58 and minutos <= 5) or minutos >= 9.58 else False
-    # print('Hora de entrar?',entrar,'/ Minutos:',minutos)
+    minutos = 1
+    entrar = remaining_seconds(minutos)
 
-    if entrar:
+    #if entrar < 15:
+    if True:
         print('\n\nIniciando operação!')
-        dir = False
         print('Verificando cores..', end='')
-        velas = API.get_candles(par, 60, 6, time.time())
+        #direcao = mhi_strategy(par)
+        direcao = 'call'
 
-        velas[0] = 'g' if velas[0]['open'] < velas[0]['close'] else 'r' if velas[0]['open'] > velas[0]['close'] else 'd'
-        velas[1] = 'g' if velas[1]['open'] < velas[1]['close'] else 'r' if velas[1]['open'] > velas[1]['close'] else 'd'
-        velas[2] = 'g' if velas[2]['open'] < velas[2]['close'] else 'r' if velas[2]['open'] > velas[2]['close'] else 'd'
-        velas[3] = 'g' if velas[3]['open'] < velas[3]['close'] else 'r' if velas[3]['open'] > velas[3]['close'] else 'd'
-        velas[4] = 'g' if velas[4]['open'] < velas[4]['close'] else 'r' if velas[4]['open'] > velas[4]['close'] else 'd'
-        velas[5] = 'g' if velas[5]['open'] < velas[5]['close'] else 'r' if velas[5]['open'] > velas[5]['close'] else 'd'
+        if direcao:
+            print('Entrando com :', direcao)
 
-        cores = velas[0] + ' ' + velas[1] + ' ' + velas[2] + ' ' + velas[3] + ' ' + velas[4] + ' ' + velas[5]
-        print(cores)
-        print('Velas verdes ', cores.count('g'))
-        print('Velas vermelhas ', cores.count('r'))
-        if (cores.count('g') + cores.count('r')) == 6:
-            if cores.count('g') < 3: dir = ('call' if tipo_mhi == 1 else 'put')
-            if cores.count('r') < 3: dir = ('put' if tipo_mhi == 1 else 'call')
+            status, valor = entradas(par, valor_entrada, direcao, operacao)
 
-        if dir:
-            print('Direção:', dir)
+            if valor < 0:
+                perda_acumulada += abs(valor)
 
-            valor_entrada = valor_entrada_b
-            perda_acumulada = 0
+            valor_entrada = soros_gale(valor, valor_entrada)
+
+
+
+            #time.sleep(minutos*60)
+            """
             for i in range(martingale):
+                print('Resultado operação: ', end='')
+                print('WIN /' if valor > 0 else 'LOSS /', round(valor, 2), '/', round(lucro, 2),
+                      ('/ ' + str(i) + ' GALE' if i > 0 else ''), ' par ', par, ' id da operacão ', id)
 
-                if i > 0:
-                    while True:
-                        opera, dir = VerificaVelas(dir)
-                        if opera:
-                            status, id = API.buy_digital_spot(par, valor_entrada, dir, 1) if operacao == 1 else API.buy(
-                                valor_entrada, par, dir, 1)
-                            break
-                elif i == 0:
-                    status, id = API.buy_digital_spot(par, valor_entrada, dir, 1) if operacao == 1 else API.buy(
-                        valor_entrada, par,
-                        dir, 1)
+                # valor_entrada = Martingale(valor_entrada, payout)
+                valor_entrada = soros_gale(valor, payout, )
+                print("Novo valor entrada sorosgale ", valor_entrada, ' PAR ', par)
 
-                if status:
-                    while True:
-                        try:
-                            status, valor = API.check_win_digital_v2(id) if operacao == 1 else API.check_win_v3(id)
-                        except:
-                            status = True
-                            valor = 0
-
-                        if status:
-                            valor = valor if valor > 0 else float('-' + str(abs(valor_entrada)))
-                            lucro += round(valor, 2)
-
-                            print('Resultado operação: ', end='')
-                            print('WIN /' if valor > 0 else 'LOSS /', round(valor, 2), '/', round(lucro, 2),
-                                  ('/ ' + str(i) + ' GALE' if i > 0 else ''), ' par ', par, ' id da operacão ', id)
-
-                            # valor_entrada = Martingale(valor_entrada, payout)
-                            valor_entrada = soros_gale(valor, payout)
-                            print("Novo valor entrada sorosgale ", valor_entrada, ' PAR ', par)
-
-                            stop(lucro, stop_gain, stop_loss)
-
-                            break
+                stop(lucro, stop_gain, stop_loss)
 
                     if valor > 0:
                         break
@@ -280,5 +278,4 @@ while True:
 
                 else:
                     print('\nERRO AO REALIZAR OPERAÇÃO\n\n')
-
-    time.sleep(0.5)
+            """
