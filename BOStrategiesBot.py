@@ -15,6 +15,7 @@ from datetime import datetime
 import time
 import sys
 import configparser
+import pandas as pd
 
 
 def remaining_seconds(minutes):
@@ -95,6 +96,23 @@ def configure():
             'password': arquivo.get('GERAL', 'password')}
 
 
+def get_candles_close(par):
+    API.start_candles_stream(par, 60, 6)
+    candles = API.get_realtime_candles(par, 60)
+
+    df_time = pd.DataFrame([(datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'), candles[ts]['close'],
+                             candles[ts]['max'], candles[ts]['min']) for ts in
+                            sorted(candles.keys(), reverse=True)],
+                           columns=['from', 'close', 'max', 'min']).set_index('from')
+    df_time = df_time.sort_index(ascending=False)
+    df_time_close = df_time['close']
+    return df_time_close
+
+
+def ema(s, window):
+    return pd.Series.ewm(s, span=window, min_periods=0, adjust=False, ignore_na=False).mean()[-1]
+
+
 def mhi_strategy(par):
     velas = API.get_candles(par, 60, 6, time.time())
 
@@ -171,21 +189,28 @@ lucro = 0
 valor_soros = 0
 lucro = 0
 win_count = 0
+ema_window = 100
 while True:
-    minutos = 5
+    minutos = 1
     entrar = remaining_seconds(minutos)
 
     if entrar < 15:
         print('\n\nIniciando operação!')
         print('Verificando cores..', end='')
-        direcao = mhi_strategy(par)
-        direcao = 'call'
+        df_time_close = get_candles_close(par)
+        curr_ema = ema(df_time_close.iloc[0:100], ema_window)
+        curr_price = df_time_close.iloc[0]
+        mhi = mhi_strategy(par)
+        ema_price = 'call' if curr_price < curr_ema else 'put' if curr_price > curr_ema else None
 
+        direcao = 'call'
+        # if direcao:
         if direcao:
             print('Entrando com :', direcao)
 
             status, valor = entradas(par, valor_soros + valor_entrada, direcao, operacao)
             lucro += valor
+            capital_inicial += lucro
 
             if 0 < perda_acumulada < valor:
                 valor_entrada = get_initial_amount(par, amount_by_payout)
@@ -207,11 +232,12 @@ while True:
             elif valor > 0 and win_count > 0:
                 valor_entrada = get_initial_amount(par, amount_by_payout)
                 valor_soros = 0
+                win_count = 0
                 continue
 
             stop(lucro, stop_gain, stop_loss)
-            capital_inicial += lucro
-            time.sleep(minutos*60)
+
+            #time.sleep(minutos*60)
             """
             for i in range(martingale):
                 print('Resultado operação: ', end='')
