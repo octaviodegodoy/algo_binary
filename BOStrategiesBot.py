@@ -17,6 +17,8 @@ import sys
 import math
 import configparser
 
+perda_acumulada = 0
+
 
 def get_all_opened_assets():
     return API.get_all_open_time()
@@ -112,7 +114,9 @@ def entradas(par, entrada, direcao, operacao):
 
 def soros_gale(valor, entrada):
     if valor < 0:
-        return abs(valor) / 2
+        perda_acumulada = abs(valor)
+        perda_acumulada += perda_acumulada / 2
+        return perda_acumulada
     elif valor > 0:
         return entrada + valor
 
@@ -203,7 +207,6 @@ acc_type = 'PRACTICE'
 
 API = IQ_Option(email, pwd)
 API.connect()
-
 API.change_balance('PRACTICE')  # PRACTICE / REAL
 
 if API.check_connect():
@@ -217,15 +220,13 @@ operacao = int(1)  # int(input('\n Deseja operar na\n  1 - Digital\n  2 - Binari
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
 par = 'EURUSD'  # input(' Indique uma paridade para operar: ').upper()
-
 martingale = int(12)  # int(input(' Indique a quantia de martingales: '))
 martingale += 1
 
 stop_loss = float(1100.0)  # float(input(' Indique o valor de Stop Loss: '))
 stop_gain = float(700.0)  # float(input(' Indique o valor de Stop Gain: '))
 
-lucro = 0
-payout = payout(par)
+# payout = payout(par)
 
 amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.94', '0.78': '0.93', '0.79': '0.91',
                     '0.80': '0.90', '0.81': '0.88', '0.82': '0.87', '0.83': '0.85', '0.84': '0.84', '0.85': '0.83',
@@ -235,30 +236,35 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
 
 valor_entrada = float(5.0)
 perda_acumulada = 0
+lucro = 0
+valor_soros = 0
+win_count = 0
 while True:
     minutos = 1
     entrar = remaining_seconds(minutos)
 
-    #if entrar < 15:
+    # if entrar < 15:
     if True:
         print('\n\nIniciando operação!')
         print('Verificando cores..', end='')
-        #direcao = mhi_strategy(par)
+        # direcao = mhi_strategy(par)
         direcao = 'call'
 
         if direcao:
             print('Entrando com :', direcao)
 
-            status, valor = entradas(par, valor_entrada, direcao, operacao)
+            status, valor = entradas(par, valor_soros + valor_entrada, direcao, operacao)
+            #valor = -5
 
             if valor < 0:
+                valor_entrada = 0
                 perda_acumulada += abs(valor)
+                valor_soros = perda_acumulada / 2
+            elif valor > 0:
+                valor_entrada += valor_soros + valor
+                win_count += 1
 
-            valor_entrada = soros_gale(valor, valor_entrada)
-
-
-
-            #time.sleep(minutos*60)
+            # time.sleep(minutos*60)
             """
             for i in range(martingale):
                 print('Resultado operação: ', end='')
