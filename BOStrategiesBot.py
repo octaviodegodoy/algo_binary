@@ -172,14 +172,13 @@ valor_soros = 0
 lucro = 0
 win_count = 0
 while True:
-    minutos = 1
+    minutos = 5
     entrar = remaining_seconds(minutos)
 
-    # if entrar < 15:
-    if True:
+    if entrar < 15:
         print('\n\nIniciando operação!')
         print('Verificando cores..', end='')
-        # direcao = mhi_strategy(par)
+        direcao = mhi_strategy(par)
         direcao = 'call'
 
         if direcao:
@@ -212,7 +211,7 @@ while True:
 
             stop(lucro, stop_gain, stop_loss)
             capital_inicial += lucro
-            # time.sleep(minutos*60)
+            time.sleep(minutos*60)
             """
             for i in range(martingale):
                 print('Resultado operação: ', end='')
