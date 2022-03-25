@@ -136,6 +136,15 @@ def mhi_strategy(par):
         return None
 
 
+def verifica_direcao(par):
+        df_time_close = get_candles_close(par)
+        curr_ema = ema(df_time_close.iloc[0:100], ema_window)
+        curr_price = df_time_close.iloc[0]
+        mhi = mhi_strategy(par)
+        result = 'call' if curr_price < curr_ema and mhi == 'call' else None
+        result = 'put' if curr_price > curr_ema and mhi == 'put' else None
+        return result
+
 print('''
 	     Simples MHI BOT
 	  youtube.com/c/IQCoding
@@ -165,14 +174,14 @@ operacao = int(1)  # int(input('\n Deseja operar na\n  1 - Digital\n  2 - Binari
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
 par = 'EURUSD'  # input(' Indique uma paridade para operar: ').upper()
-martingale = int(12)  # int(input(' Indique a quantia de martingales: '))
-martingale += 1
-capital_inicial = float(20000.0)
 
-meta_diaria_ganho = float(2/100)*capital_inicial
-meta_diaria_risco = float(3/100)*capital_inicial
 
-stop_loss = meta_diaria_risco # float(input(' Indique o valor de Stop Loss: '))
+capital_inicial = float(2000.0)
+
+meta_diaria_ganho = float(100 / 100) * capital_inicial
+meta_diaria_risco = float(100 / 100) * capital_inicial
+
+stop_loss = meta_diaria_risco  # float(input(' Indique o valor de Stop Loss: '))
 stop_gain = meta_diaria_ganho  # float(input(' Indique o valor de Stop Gain: '))
 
 amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.94', '0.78': '0.93', '0.79': '0.91',
@@ -181,14 +190,9 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
                     '0.92': '0.75', '0.93': '0.74', '0.94': '0.73', '0.95': '0.72', '0.96': '0.71', '0.97': '0.70',
                     '0.98': '0.69', '0.99': '0.68', '100': '0.67'}
 
-
 valor_entrada = get_initial_amount(par, amount_by_payout)
 
-perda_acumulada = 0
-lucro = 0
 valor_soros = 0
-lucro = 0
-win_count = 0
 ema_window = 100
 while True:
     minutos = 1
@@ -197,11 +201,6 @@ while True:
     if entrar < 15:
         print('\n\nIniciando operação!')
         print('Verificando cores..', end='')
-        df_time_close = get_candles_close(par)
-        curr_ema = ema(df_time_close.iloc[0:100], ema_window)
-        curr_price = df_time_close.iloc[0]
-        mhi = mhi_strategy(par)
-        ema_price = 'call' if curr_price < curr_ema else 'put' if curr_price > curr_ema else None
 
         direcao = 'call'
         # if direcao:
@@ -209,52 +208,37 @@ while True:
             print('Entrando com :', direcao)
 
             status, valor = entradas(par, valor_soros + valor_entrada, direcao, operacao)
-            lucro += valor
-            capital_inicial += lucro
 
-            if 0 < perda_acumulada < valor:
-                valor_entrada = get_initial_amount(par, amount_by_payout)
-                continue
+            if valor < 0 and config['sorosgale'] == 'S':  # SorosGale
 
-            if valor < 0 and win_count == 0:
-                valor_entrada = 0
-                perda_acumulada += abs(valor)
-                valor_soros = float(perda_acumulada) / 2
-            elif valor < 0 and win_count == 1:
-                valor_entrada = 0
-                perda_acumulada = abs(lucro)
-                valor_soros = float(perda_acumulada) / 2
-                win_count = 0
-            elif valor > 0 and win_count == 0:
-                win_count += 1
-                valor_entrada += round(valor_soros + valor, 2)
-                valor_soros = 0
-            elif valor > 0 and win_count > 0:
-                valor_entrada = get_initial_amount(par, amount_by_payout)
-                valor_soros = 0
-                win_count = 0
-                continue
+                lucro_total = 0
+                lucro = 0
+                perda = abs(valor)
+                # Nivel
+                for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
+                    capital_inicial += lucro_total
+                    # Mao
+                    for i2 in range(2):
 
-            stop(lucro, stop_gain, stop_loss)
+                        if lucro_total >= perda:
+                            break
 
-            #time.sleep(minutos*60)
-            """
-            for i in range(martingale):
-                print('Resultado operação: ', end='')
-                print('WIN /' if valor > 0 else 'LOSS /', round(valor, 2), '/', round(lucro, 2),
-                      ('/ ' + str(i) + ' GALE' if i > 0 else ''), ' par ', par, ' id da operacão ', id)
+                        stop(lucro_total, stop_gain, stop_loss)
 
-                # valor_entrada = Martingale(valor_entrada, payout)
-                valor_entrada = soros_gale(valor, payout, )
-                print("Novo valor entrada sorosgale ", valor_entrada, ' PAR ', par)
+                        print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
 
-                stop(lucro, stop_gain, stop_loss)
+                        # Entrada
+                        status, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
 
-                    if valor > 0:
-                        break
-                    elif valor < 0:
-                        time.sleep(300)
+                        print(status, '/', lucro, '\n')
 
-                else:
-                    print('\nERRO AO REALIZAR OPERAÇÃO\n\n')
-            """
+                        if lucro > 0:
+                            lucro_total += lucro
+                        elif lucro < 0:
+                            lucro_total = 0
+                            perda += perda / 2
+                            break
+            elif valor > 0:
+                capital_inicial += valor
+
+            time.sleep(minutos * 60)
