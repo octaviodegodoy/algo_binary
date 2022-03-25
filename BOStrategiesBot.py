@@ -238,6 +238,7 @@ while True:
                             lucro_total = 0
                             perda += perda / 2
                             break
+                capital_inicial += (lucro_total - perda)
             elif valor > 0:
                 capital_inicial += valor
 
