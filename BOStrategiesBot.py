@@ -230,7 +230,7 @@ while True:
         if direcao:
             print('Entrando com :', direcao)
 
-            status, valor = entradas(par, valor_soros + valor_entrada, direcao, operacao)
+            status, valor = entradas(par, valor_entrada, direcao, operacao)
 
             if valor < 0 and config['sorosgale'] == 'S':  # SorosGale
 
