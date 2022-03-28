@@ -18,6 +18,14 @@ import configparser
 import pandas as pd
 
 
+def is_asset_open(asset, all_opened_assets, mode):
+    return all_opened_assets[mode][asset]['open']
+
+
+def get_all_opened_assets():
+    return API.get_all_open_time()
+
+
 def remaining_seconds(minutes):
     return ((minutes * 60) - ((datetime.now().minute % minutes) * 60 + datetime.now().second)) - 30
 
@@ -91,7 +99,6 @@ def configure():
 
     return {'sorosgale': arquivo.get('GERAL', 'sorosgale'),
             'levels': arquivo.get('GERAL', 'levels'),
-            'active': arquivo.get('GERAL', 'active'),
             'login': arquivo.get('GERAL', 'login'),
             'password': arquivo.get('GERAL', 'password')}
 
@@ -136,14 +143,29 @@ def mhi_strategy(par):
         return None
 
 
+def get_opened_actives_list(actives):
+    opened_assets = get_all_opened_assets()
+    opened = dict()
+    for mode in ['turbo', 'digital', 'binary']:
+        for active in actives:
+            if is_asset_open(active, opened_assets, mode):
+                opened[mode] = active
+
+    return opened
+
+
 def verifica_direcao(par):
-        df_time_close = get_candles_close(par)
-        curr_ema = ema(df_time_close.iloc[0:100], ema_window)
-        curr_price = df_time_close.iloc[0]
-        mhi = mhi_strategy(par)
-        result = 'call' if curr_price < curr_ema and mhi == 'call' else None
-        result = 'put' if curr_price > curr_ema and mhi == 'put' else None
-        return result
+    df_time_close = get_candles_close(par)
+    curr_ema = ema(df_time_close.iloc[0:100], ema_window)
+    curr_price = df_time_close.iloc[0]
+    mhi = mhi_strategy(par)
+    if curr_price > curr_ema and mhi == 'call':
+        return 'call'
+    elif curr_price < curr_ema and mhi == 'put':
+        return 'put'
+    else:
+        return None
+
 
 print('''
 	     Simples MHI BOT
@@ -173,13 +195,15 @@ else:
 operacao = int(1)  # int(input('\n Deseja operar na\n  1 - Digital\n  2 - Binaria\n  :: '))
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
-par = 'EURUSD'  # input(' Indique uma paridade para operar: ').upper()
+actives = ['EURUSD', 'EURUSD-OTC']
 
+open_actives = get_opened_actives_list(actives)
 
-capital_inicial = float(2000.0)
+par = open_actives['digital']
+capital_inicial = float(1000.0)
 
-meta_diaria_ganho = float(100 / 100) * capital_inicial
-meta_diaria_risco = float(100 / 100) * capital_inicial
+meta_diaria_ganho = float(3.5 / 100) * capital_inicial
+meta_diaria_risco = float(3.0 / 100) * capital_inicial
 
 stop_loss = meta_diaria_risco  # float(input(' Indique o valor de Stop Loss: '))
 stop_gain = meta_diaria_ganho  # float(input(' Indique o valor de Stop Gain: '))
@@ -192,18 +216,17 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
 
 valor_entrada = get_initial_amount(par, amount_by_payout)
 
-valor_soros = 0
 ema_window = 100
 while True:
     minutos = 1
     entrar = remaining_seconds(minutos)
 
-    if entrar < 15:
+    if 0 < entrar < 5:
         print('\n\nIniciando operação!')
         print('Verificando cores..', end='')
 
-        direcao = 'call'
-        # if direcao:
+        direcao = verifica_direcao(par)
+
         if direcao:
             print('Entrando com :', direcao)
 
