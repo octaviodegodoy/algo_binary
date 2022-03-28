@@ -197,9 +197,6 @@ tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - 
 
 actives = ['EURUSD', 'EURUSD-OTC']
 
-open_actives = get_opened_actives_list(actives)
-
-par = open_actives['digital']
 capital_inicial = float(1000.0)
 
 meta_diaria_ganho = float(3.5 / 100) * capital_inicial
@@ -214,10 +211,13 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
                     '0.92': '0.75', '0.93': '0.74', '0.94': '0.73', '0.95': '0.72', '0.96': '0.71', '0.97': '0.70',
                     '0.98': '0.69', '0.99': '0.68', '100': '0.67'}
 
-valor_entrada = get_initial_amount(par, amount_by_payout)
+
 
 ema_window = 100
 while True:
+    open_actives = get_opened_actives_list(actives)
+    par = open_actives['digital']
+    valor_entrada = get_initial_amount(par, amount_by_payout)
     minutos = 1
     entrar = remaining_seconds(minutos)
 
