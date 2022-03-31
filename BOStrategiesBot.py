@@ -200,6 +200,16 @@ def verifica_direcao(par):
         return None
 
 
+def get_active(open_actives):
+    for mode in open_actives:
+        active = open_actives[mode]
+
+    if active:
+        return active
+    else:
+        return None
+
+
 print('''
 	     Simples MHI BOT
 	  youtube.com/c/IQCoding
@@ -225,7 +235,6 @@ else:
     # input('\n\n Aperte enter para sair')
     sys.exit()
 
-
 operacao = int(1)  # int(input('\n Deseja operar na\n  1 - Digital\n  2 - Binaria\n  :: '))
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
@@ -248,56 +257,55 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
 ema_window = 100
 while True:
     open_actives = get_opened_actives_list(actives)
-    par = open_actives['digital']
-    valor_entrada = get_initial_amount(par, amount_by_payout)
-    minutos = 1
-    entrar = remaining_seconds(minutos)
+    par = get_active(open_actives)
+    if par:
+        valor_entrada = get_initial_amount(par, amount_by_payout)
+        minutos = 1
+        entrar = remaining_seconds(minutos)
 
-    if 0 < entrar < 15:
-        direcao = donchian_fractal(par)
+        if 0 < entrar < 15:
+            direcao = donchian_fractal(par)
 
-        if direcao:
-            print('Entrando com :', direcao)
+            if direcao:
+                print('Entrando com :', direcao)
 
-            resultado, valor = entradas(par, valor_entrada, direcao, operacao)
+                resultado, valor = entradas(par, valor_entrada, direcao, operacao)
 
-            if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
+                if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
-                lucro_total = 0
-                lucro = 0
-                perda = valor_entrada
-                # Nivel
-                for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
-                    # Mao
-                    for i2 in range(2):
+                    lucro_total = 0
+                    lucro = 0
+                    perda = valor_entrada
+                    # Nivel
+                    for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
+                        # Mao
+                        for i2 in range(2):
 
-                        # Entrada
-                        while True:
-                            capital_inicial += lucro_total
+                            # Entrada
+                            while True:
+                                capital_inicial += lucro_total
 
-                            if lucro_total >= perda:
-                                break
-
-                            entrar = remaining_seconds(minutos)
-                            direcao = donchian_fractal(par)
-
-                            if 0 < entrar < 15 and direcao:
-
-                                print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
-
-                                resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
-
-                                print(resultado, '/', lucro, '\n')
-
-                                if resultado == 'win':
-                                    lucro_total += lucro
-                                else:
-                                    lucro_total = 0
-                                    perda += perda / 2
+                                if lucro_total >= perda:
                                     break
-                            time.sleep((minutos / 2) * 60)
 
-            elif valor > 0:
-                capital_inicial += valor
+                                entrar = remaining_seconds(minutos)
+                                direcao = donchian_fractal(par)
 
+                                if 0 < entrar < 15 and direcao:
+
+                                    print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
+
+                                    resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
+
+                                    print(resultado, '/', lucro, '\n')
+
+                                    if resultado == 'win':
+                                        lucro_total += lucro
+                                    else:
+                                        lucro_total = 0
+                                        perda += perda / 2
+                                        break
+                                time.sleep(0.1 * 60)
             time.sleep(minutos * 60)
+    else:
+        print('Ativo não encontrado ')
