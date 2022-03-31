@@ -273,6 +273,8 @@ while True:
 
                         # Entrada
                         while True:
+                            capital_inicial += lucro_total
+
                             if lucro_total >= perda:
                                 break
 
