@@ -47,12 +47,12 @@ def entradas(par, entrada, direcao, operacao):
     if status:
         while True:
             status, valor = API.check_win_digital_v2(id) if operacao == 1 else API.check_win_v3(id)
+
             if status:
                 if valor > 0:
-                    return status, round(valor, 2)
+                    return 'win', round(valor, 2)
                 else:
-                    return status, round(valor, 2)
-                break
+                    return 'loss', 0
     else:
         return False, 0
 
@@ -154,6 +154,39 @@ def get_opened_actives_list(actives):
     return opened
 
 
+def donchian_fractal(par):
+    velas = API.get_candles(par, 60, 21, time.time())
+    taxas_min = []
+    taxas_max = []
+
+    for candles in velas:
+        taxas_min.append(round(candles['min'], 6))
+        taxas_max.append(round(candles['max'], 6))
+
+    # Donchian
+    maior = sorted(taxas_max, reverse=True)[0]
+    menor = sorted(taxas_min)[0]
+
+    # Fractal
+    fractal = None
+    if velas[-2]['max'] > velas[-3]['max'] and velas[-2]['max'] > velas[-1]['max']:
+        fractal = 'acima'
+    elif velas[-2]['min'] < velas[-3]['min'] and velas[-2]['min'] < velas[-1]['min']:
+        fractal = 'abaixo'
+
+    # Ultimas 3 velas respeitam os limites do Donchian
+    limite_acima = False if velas[-1]['max'] > maior or velas[-2]['max'] > maior or velas[-3]['max'] > maior else True
+    limite_abaixo = False if velas[-1]['min'] < menor or velas[-2]['min'] < menor or velas[-3]['min'] < menor else True
+
+    if fractal is not None:
+
+        if fractal == 'acima' and round(velas[-2]['max'], 6) >= maior and limite_acima:
+            return 'put'
+
+        elif fractal == 'abaixo' and round(velas[-2]['min'], 6) <= menor and limite_abaixo:
+            return 'call'
+
+
 def verifica_direcao(par):
     df_time_close = get_candles_close(par)
     curr_ema = ema(df_time_close.iloc[0:100], ema_window)
@@ -192,6 +225,7 @@ else:
     # input('\n\n Aperte enter para sair')
     sys.exit()
 
+
 operacao = int(1)  # int(input('\n Deseja operar na\n  1 - Digital\n  2 - Binaria\n  :: '))
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
@@ -211,8 +245,6 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
                     '0.92': '0.75', '0.93': '0.74', '0.94': '0.73', '0.95': '0.72', '0.96': '0.71', '0.97': '0.70',
                     '0.98': '0.69', '0.99': '0.68', '100': '0.67'}
 
-
-
 ema_window = 100
 while True:
     open_actives = get_opened_actives_list(actives)
@@ -221,47 +253,48 @@ while True:
     minutos = 1
     entrar = remaining_seconds(minutos)
 
-    if 0 < entrar < 5:
-        print('\n\nIniciando operação!')
-        print('Verificando cores..', end='')
-
-        direcao = verifica_direcao(par)
+    if 0 < entrar < 15:
+        direcao = donchian_fractal(par)
 
         if direcao:
             print('Entrando com :', direcao)
 
-            status, valor = entradas(par, valor_entrada, direcao, operacao)
+            resultado, valor = entradas(par, valor_entrada, direcao, operacao)
 
-            if valor < 0 and config['sorosgale'] == 'S':  # SorosGale
+            if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
                 lucro_total = 0
                 lucro = 0
-                perda = abs(valor)
+                perda = valor_entrada
                 # Nivel
                 for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
-                    capital_inicial += lucro_total
                     # Mao
                     for i2 in range(2):
 
-                        if lucro_total >= perda:
-                            break
-
-                        stop(lucro_total, stop_gain, stop_loss)
-
-                        print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
-
                         # Entrada
-                        status, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
+                        while True:
+                            if lucro_total >= perda:
+                                break
 
-                        print(status, '/', lucro, '\n')
+                            entrar = remaining_seconds(minutos)
+                            direcao = donchian_fractal(par)
 
-                        if lucro > 0:
-                            lucro_total += lucro
-                        elif lucro < 0:
-                            lucro_total = 0
-                            perda += perda / 2
-                            break
-                capital_inicial += (lucro_total - perda)
+                            if 0 < entrar < 15 and direcao:
+
+                                print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
+
+                                resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
+
+                                print(resultado, '/', lucro, '\n')
+
+                                if resultado == 'win':
+                                    lucro_total += lucro
+                                else:
+                                    lucro_total = 0
+                                    perda += perda / 2
+                                    break
+                            time.sleep((minutos / 2) * 60)
+
             elif valor > 0:
                 capital_inicial += valor
 
