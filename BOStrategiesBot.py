@@ -40,21 +40,24 @@ def stop(lucro, gain, loss):
         sys.exit()
 
 
-def entradas(par, entrada, direcao, operacao):
-    status, id = API.buy_digital_spot(par, entrada, direcao, 1) if operacao == 0 else API.buy(
-        entrada, par, direcao, 1)
+def entradas(par, entrada, direcao, minutos):
+
+    status, id = API.buy_digital_spot(par, entrada, direcao, minutos) if operacao == 0 else API.buy(entrada, par, direcao, minutos)
 
     if status:
         while True:
-            status, valor = API.check_win_digital_v2(id) if operacao == 0 else API.check_win_v3(id)
+            try:
+                resultado, valor = API.check_win_digital_v2(id) if operacao == 0 else API.check_win_v3(id)
+                if resultado:
+                    if valor > 0:
+                        return 'win', valor
+                    elif valor < 0:
+                        return 'loss', 0
+            except:
+                resultado = 'error'
+                valor = 0
+                return resultado, valor
 
-            if status:
-                if valor > 0:
-                    return 'win', round(valor, 2)
-                else:
-                    return 'loss', 0
-    else:
-        return None, 0
 
 
 def payout(par):
@@ -270,7 +273,7 @@ while True:
             if direcao:
                 print('Entrando com :', direcao, ' ativo ', par)
 
-                resultado, valor = entradas(par, valor_entrada, direcao, operacao)
+                resultado, valor = entradas(par, valor_entrada, direcao, minutos)
 
                 if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
@@ -293,6 +296,7 @@ while True:
                                 if 0 < entrar < 15 and direcao:
                                     print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
                                     resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
+                                    resultado = 'loss'
 
                                     if resultado:
                                         print(resultado, '/', lucro, '\n')
@@ -303,6 +307,3 @@ while True:
                                             perda += round(perda / 2, 2)
                                             break
                                         time.sleep(0.1 * 60)
-            time.sleep(minutos * 60)
-    else:
-        print('Ativo não encontrado ')
