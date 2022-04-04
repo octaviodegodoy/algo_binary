@@ -41,12 +41,12 @@ def stop(lucro, gain, loss):
 
 
 def entradas(par, entrada, direcao, operacao):
-    status, id = API.buy_digital_spot(par, entrada, direcao, 1) if operacao == 1 else API.buy(
+    status, id = API.buy_digital_spot(par, entrada, direcao, 1) if operacao == 0 else API.buy(
         entrada, par, direcao, 1)
 
     if status:
         while True:
-            status, valor = API.check_win_digital_v2(id) if operacao == 1 else API.check_win_v3(id)
+            status, valor = API.check_win_digital_v2(id) if operacao == 0 else API.check_win_v3(id)
 
             if status:
                 if valor > 0:
@@ -54,7 +54,7 @@ def entradas(par, entrada, direcao, operacao):
                 else:
                     return 'loss', 0
     else:
-        return False, 0
+        return None, 0
 
 
 def payout(par):
@@ -200,14 +200,10 @@ def verifica_direcao(par):
         return None
 
 
-def get_active(open_actives):
-    for mode in open_actives:
-        active = open_actives[mode]
-
-    if active:
-        return active
-    else:
-        return None
+def get_active(actives, operacao):
+    open_actives = get_opened_actives_list(actives)
+    modes = ['digital', 'binary']
+    return open_actives.get(modes[operacao])
 
 
 print('''
@@ -235,12 +231,18 @@ else:
     # input('\n\n Aperte enter para sair')
     sys.exit()
 
-operacao = int(1)  # int(input('\n Deseja operar na\n  1 - Digital\n  2 - Binaria\n  :: '))
+# alterar para este metodo
+
+# remaining = API.get_remaning(expiration)
+
+
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
 actives = ['EURUSD', 'EURUSD-OTC']
+mode = ['digital', 'binary']
+operacao = 0  # int('\n Deseja operar na\n  0 - Digital\n  1 - Binaria\n  :: '))
 
-capital_inicial = float(1000.0)
+capital_inicial = float(600.0)
 
 meta_diaria_ganho = float(3.5 / 100) * capital_inicial
 meta_diaria_risco = float(3.0 / 100) * capital_inicial
@@ -256,8 +258,7 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
 
 ema_window = 100
 while True:
-    open_actives = get_opened_actives_list(actives)
-    par = get_active(open_actives)
+    par = get_active(actives, operacao)
     if par:
         valor_entrada = get_initial_amount(par, amount_by_payout)
         minutos = 1
@@ -267,7 +268,7 @@ while True:
             direcao = donchian_fractal(par)
 
             if direcao:
-                print('Entrando com :', direcao)
+                print('Entrando com :', direcao, ' ativo ', par)
 
                 resultado, valor = entradas(par, valor_entrada, direcao, operacao)
 
@@ -283,8 +284,6 @@ while True:
 
                             # Entrada
                             while True:
-                                capital_inicial += lucro_total
-
                                 if lucro_total >= perda:
                                     break
 
@@ -292,20 +291,20 @@ while True:
                                 direcao = donchian_fractal(par)
 
                                 if 0 < entrar < 15 and direcao:
-
                                     print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
-
                                     resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
+                                    resultado = None
+                                    lucro = 0
 
-                                    print(resultado, '/', lucro, '\n')
-
-                                    if resultado == 'win':
-                                        lucro_total += lucro
-                                    else:
-                                        lucro_total = 0
-                                        perda += perda / 2
-                                        break
-                                time.sleep(0.1 * 60)
+                                    if resultado:
+                                        print(resultado, '/', lucro, '\n')
+                                        if resultado == 'win':
+                                            lucro_total += lucro
+                                        elif resultado == 'loss':
+                                            lucro_total = 0
+                                            perda += round(perda / 2, 2)
+                                            break
+                                        time.sleep(0.1 * 60)
             time.sleep(minutos * 60)
     else:
         print('Ativo não encontrado ')
