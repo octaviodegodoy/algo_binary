@@ -293,8 +293,6 @@ while True:
                                 if 0 < entrar < 15 and direcao:
                                     print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
                                     resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
-                                    resultado = None
-                                    lucro = 0
 
                                     if resultado:
                                         print(resultado, '/', lucro, '\n')
