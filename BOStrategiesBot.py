@@ -41,8 +41,8 @@ def stop(lucro, gain, loss):
 
 
 def entradas(par, entrada, direcao, minutos):
-
-    status, id = API.buy_digital_spot(par, entrada, direcao, minutos) if operacao == 0 else API.buy(entrada, par, direcao, minutos)
+    status, id = API.buy_digital_spot(par, entrada, direcao, minutos) if operacao == 0 else API.buy(entrada, par,
+                                                                                                    direcao, minutos)
 
     if status:
         while True:
@@ -57,7 +57,6 @@ def entradas(par, entrada, direcao, minutos):
                 resultado = 'error'
                 valor = 0
                 return resultado, valor
-
 
 
 def payout(par):
@@ -247,8 +246,8 @@ operacao = 0  # int('\n Deseja operar na\n  0 - Digital\n  1 - Binaria\n  :: '))
 
 capital_inicial = float(600.0)
 
-meta_diaria_ganho = float(3.5 / 100) * capital_inicial
-meta_diaria_risco = float(3.0 / 100) * capital_inicial
+meta_diaria_ganho = round(float(3.5 / 100) * capital_inicial, 2)
+meta_diaria_risco = round(float(3.0 / 100) * capital_inicial, 2)
 
 stop_loss = meta_diaria_risco  # float(input(' Indique o valor de Stop Loss: '))
 stop_gain = meta_diaria_ganho  # float(input(' Indique o valor de Stop Gain: '))
@@ -262,48 +261,52 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
 ema_window = 100
 while True:
     par = get_active(actives, operacao)
-    if par:
-        valor_entrada = get_initial_amount(par, amount_by_payout)
-        minutos = 1
-        entrar = remaining_seconds(minutos)
+    valor_entrada = get_initial_amount(par, amount_by_payout)
+    minutos = 1
+    entrar = remaining_seconds(minutos)
 
-        if 0 < entrar < 15:
-            direcao = donchian_fractal(par)
+    if 0 < entrar < 15:
+        direcao = donchian_fractal(par)
+        if direcao:
+            print('Entrando com :', direcao, ' ativo ', par)
+            resultado, valor = entradas(par, valor_entrada, direcao, minutos)
 
-            if direcao:
-                print('Entrando com :', direcao, ' ativo ', par)
 
-                resultado, valor = entradas(par, valor_entrada, direcao, minutos)
+            if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
-                if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
+                lucro_total = 0
+                lucro = 0
+                perda = valor_entrada
+                # Nivel
+                for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
+                    # Mao
+                    for i2 in range(2):
 
-                    lucro_total = 0
-                    lucro = 0
-                    perda = valor_entrada
-                    # Nivel
-                    for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
-                        # Mao
-                        for i2 in range(2):
+                        # Entrada
+                        while True:
+                            par = get_active(actives, operacao)
+                            capital_inicial += (lucro_total - perda)
 
-                            # Entrada
-                            while True:
-                                if lucro_total >= perda:
-                                    break
+                            if lucro_total >= perda:
+                                break
 
-                                entrar = remaining_seconds(minutos)
-                                direcao = donchian_fractal(par)
+                            stop(lucro_total - perda, meta_diaria_ganho, meta_diaria_risco)
 
-                                if 0 < entrar < 15 and direcao:
-                                    print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | ', end='')
-                                    resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
-                                    resultado = 'loss'
 
-                                    if resultado:
-                                        print(resultado, '/', lucro, '\n')
-                                        if resultado == 'win':
-                                            lucro_total += lucro
-                                        elif resultado == 'loss':
-                                            lucro_total = 0
-                                            perda += round(perda / 2, 2)
-                                            break
-                                        time.sleep(0.1 * 60)
+                            entrar = remaining_seconds(minutos)
+                            direcao = donchian_fractal(par)
+
+                            if 0 < entrar < 15 and direcao:
+                                print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
+                                resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
+
+                                if resultado:
+                                    print(resultado, '/', lucro, ' ', perda, '\n')
+
+                                    if resultado == 'win':
+                                        lucro_total += lucro
+                                    elif resultado == 'loss':
+                                        lucro_total = 0
+                                        perda += round(perda / 2, 2)
+                                        break
+                                    time.sleep(0.1 * 60)
