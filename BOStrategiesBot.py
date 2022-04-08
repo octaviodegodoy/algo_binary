@@ -46,17 +46,15 @@ def entradas(par, entrada, direcao, minutos):
 
     if status:
         while True:
-            try:
-                resultado, valor = API.check_win_digital_v2(id) if operacao == 0 else API.check_win_v3(id)
-                if resultado:
-                    if valor > 0:
-                        return 'win', valor
-                    elif valor < 0:
-                        return 'loss', 0
-            except:
-                resultado = 'error'
-                valor = 0
-                return resultado, valor
+            resultado, valor = API.check_win_digital_v2(id) if operacao == 0 else API.check_win_v3(id)
+
+            if resultado and valor:
+                if valor > 0:
+                    return 'win', valor
+                elif valor < 0:
+                    return 'loss', 0
+    else:
+        return 'error', 0
 
 
 def payout(par):
@@ -156,8 +154,33 @@ def get_opened_actives_list(actives):
     return opened
 
 
-def donchian_fractal(par):
-    velas = API.get_candles(par, 60, 21, time.time())
+def vc_strategy(df, window, min_periods, multiplier, nivel_1, nivel_2, touch_type):
+    df['aux_median'] = (df['max'] + df['min']) / 2
+    df['Floating Axis'] = df['aux_median'].rolling(window=window, min_periods=min_periods, closed='right').mean()
+    df['Relative Open'] = df['open'] - df['Floating Axis']
+    df['Relative Close'] = df['close'] - df['Floating Axis']
+    df['Relative High'] = df['max'] - df['Floating Axis']
+    df['Relative Low'] = df['min'] - df['Floating Axis']
+
+    df['aux_diff'] = (df['max'] - df['min']) * multiplier
+    df['Floating Axis'] = df['aux_median'].rolling(window=window, min_periods=min_periods, closed='right').mean()
+    df['Volatility Unit'] = df['aux_diff'].rolling(window=window, min_periods=min_periods, closed='right').mean()
+
+    df['V Chart Open'] = (df['open'] - df['Floating Axis']) / df['Volatility Unit']
+    df['V Chart Close'] = (df['close'] - df['Floating Axis']) / df['Volatility Unit']
+    df['V Chart High'] = (df['max'] - df['Floating Axis']) / df['Volatility Unit']
+    df['V Chart Low'] = (df['min'] - df['Floating Axis']) / df['Volatility Unit']
+
+    if touch_type == 'close':
+        df['signal'] = df.apply(lambda x: 'buy' if x['V Chart Close'] <= -nivel_1 else 'sell' if x['V Chart Close'] >= nivel_2 else 'nothing', axis=1)
+    elif touch_type == 'pavio':
+        df['signal'] = df.apply(lambda x: 'buy' if x['V Chart Low'] <= -nivel_1 else 'sell' if x['V Chart High'] >= nivel_2 else 'nothing', axis=1)
+
+    return df.iloc[-1]['signal']
+
+
+def donchian_fractal(par, timeframe):
+    velas = API.get_candles(par, timeframe, 21, time.time())
     taxas_min = []
     taxas_max = []
 
@@ -190,16 +213,30 @@ def donchian_fractal(par):
 
 
 def verifica_direcao(par):
+
     df_time_close = get_candles_close(par)
-    curr_ema = ema(df_time_close.iloc[0:100], ema_window)
     curr_price = df_time_close.iloc[0]
-    mhi = mhi_strategy(par)
-    if curr_price > curr_ema and mhi == 'call':
-        return 'call'
-    elif curr_price < curr_ema and mhi == 'put':
-        return 'put'
-    else:
-        return None
+    min_periods = 5  # int(st.iloc[0]['min_periods'])
+    multiplier = 0.2  # float(st.iloc[0]['multiplier'])
+    nivel_1 = 7  # int(st.iloc[0]['nivel_1'])
+    nivel_2 = 7  # int(st.iloc[0]['nivel_2'])
+    touch_type = 'pavio'  # st.iloc[0]['touch_type']
+    window = 5  # int(st.iloc[0]['window'])
+
+    API.start_candles_stream('EURUSD', 60, 51)
+    candles = API.get_realtime_candles('EURUSD', 60)
+
+    df_time = pd.DataFrame(
+        [(datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'), candles[ts]["open"], candles[ts]["close"],
+          candles[ts]["max"], candles[ts]["min"]) for ts in
+         sorted(candles.keys(), reverse=True)],
+        columns=['from', 'open', 'close', 'max', 'min']).set_index('from')
+    df_time = df_time.sort_index(ascending=True)
+
+    direcao = vc_strategy(df_time, window, min_periods, multiplier, nivel_1, nivel_2, touch_type)
+
+    return direcao
+
 
 
 def get_active(actives, operacao):
@@ -220,8 +257,6 @@ email = config['login']
 pwd = config['password']
 
 # REAL / PRACTICE
-acc_type = 'PRACTICE'
-
 API = IQ_Option(email, pwd)
 API.connect()
 API.change_balance('PRACTICE')  # PRACTICE / REAL
@@ -264,49 +299,49 @@ while True:
     valor_entrada = get_initial_amount(par, amount_by_payout)
     minutos = 1
     entrar = remaining_seconds(minutos)
+    entrar = 15
 
-    if 0 < entrar < 15:
-        direcao = donchian_fractal(par)
+    if 0 < entrar < 30:
+        direcao = donchian_fractal(par, 60)
+        direcao = 'call'
+
         if direcao:
-            print('Entrando com :', direcao, ' ativo ', par)
-            resultado, valor = entradas(par, valor_entrada, direcao, minutos)
+               print('Entrando com :', direcao, ' ativo ', par)
+               resultado, valor = entradas(par, valor_entrada, direcao, minutos)
 
+               if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
-            if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
+                   lucro_total = 0
+                   lucro = 0
+                   perda = valor_entrada
+                   # Nivel
+                   for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
+                       # Mao
+                       for i2 in range(2):
+                           # Entrada
+                           while True:
+                               par = get_active(actives, operacao)
+                               capital_inicial += (lucro_total - perda)
+                               if lucro_total >= perda:
+                                    break
 
-                lucro_total = 0
-                lucro = 0
-                perda = valor_entrada
-                # Nivel
-                for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
-                    # Mao
-                    for i2 in range(2):
+                               stop(lucro_total - perda, meta_diaria_ganho, meta_diaria_risco)
 
-                        # Entrada
-                        while True:
-                            par = get_active(actives, operacao)
-                            capital_inicial += (lucro_total - perda)
+                               entrar = remaining_seconds(minutos)
+                               direcao = donchian_fractal(par, 60)
+                               direcao = 'call'
+                               entrar = 15
 
-                            if lucro_total >= perda:
-                                break
-
-                            stop(lucro_total - perda, meta_diaria_ganho, meta_diaria_risco)
-
-
-                            entrar = remaining_seconds(minutos)
-                            direcao = donchian_fractal(par)
-
-                            if 0 < entrar < 15 and direcao:
-                                print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
-                                resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
-
-                                if resultado:
-                                    print(resultado, '/', lucro, ' ', perda, '\n')
-
-                                    if resultado == 'win':
-                                        lucro_total += lucro
-                                    elif resultado == 'loss':
-                                        lucro_total = 0
-                                        perda += round(perda / 2, 2)
-                                        break
-                                    time.sleep(0.1 * 60)
+                               if 0 < entrar < 30 and direcao:
+                                      print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
+                                      resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
+                                      if resultado:
+                                         print(resultado, '/', lucro, ' ', perda, '\n')
+                                         if resultado == 'win':
+                                               lucro_total += lucro
+                                         elif resultado == 'loss':
+                                               lucro_total = 0
+                                               perda += round(perda / 2, 2)
+                                               break
+                                         time.sleep(0.1 * 60)
+    time.sleep(0.5 * 60)
