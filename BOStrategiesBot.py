@@ -172,9 +172,13 @@ def vc_strategy(df, window, min_periods, multiplier, nivel_1, nivel_2, touch_typ
     df['V Chart Low'] = (df['min'] - df['Floating Axis']) / df['Volatility Unit']
 
     if touch_type == 'close':
-        df['signal'] = df.apply(lambda x: 'buy' if x['V Chart Close'] <= -nivel_1 else 'sell' if x['V Chart Close'] >= nivel_2 else 'nothing', axis=1)
+        df['signal'] = df.apply(lambda x: 'buy' if x['V Chart Close'] <= -nivel_1 else 'sell' if x[
+                                                                                                     'V Chart Close'] >= nivel_2 else 'nothing',
+                                axis=1)
     elif touch_type == 'pavio':
-        df['signal'] = df.apply(lambda x: 'buy' if x['V Chart Low'] <= -nivel_1 else 'sell' if x['V Chart High'] >= nivel_2 else 'nothing', axis=1)
+        df['signal'] = df.apply(
+            lambda x: 'buy' if x['V Chart Low'] <= -nivel_1 else 'sell' if x['V Chart High'] >= nivel_2 else 'nothing',
+            axis=1)
 
     return df.iloc[-1]['signal']
 
@@ -213,7 +217,6 @@ def donchian_fractal(par, timeframe):
 
 
 def verifica_direcao(par):
-
     df_time_close = get_candles_close(par)
     curr_price = df_time_close.iloc[0]
     min_periods = 5  # int(st.iloc[0]['min_periods'])
@@ -236,7 +239,6 @@ def verifica_direcao(par):
     direcao = vc_strategy(df_time, window, min_periods, multiplier, nivel_1, nivel_2, touch_type)
 
     return direcao
-
 
 
 def get_active(actives, operacao):
@@ -268,10 +270,6 @@ else:
     # input('\n\n Aperte enter para sair')
     sys.exit()
 
-# alterar para este metodo
-
-# remaining = API.get_remaning(expiration)
-
 
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
@@ -281,8 +279,10 @@ operacao = 0  # int('\n Deseja operar na\n  0 - Digital\n  1 - Binaria\n  :: '))
 
 capital_inicial = float(600.0)
 
+expiration = 1
+
 meta_diaria_ganho = round(float(3.5 / 100) * capital_inicial, 2)
-meta_diaria_risco = round(float(3.0 / 100) * capital_inicial, 2)
+meta_diaria_risco = round(float(8.0 / 100) * capital_inicial, 2)
 
 stop_loss = meta_diaria_risco  # float(input(' Indique o valor de Stop Loss: '))
 stop_gain = meta_diaria_ganho  # float(input(' Indique o valor de Stop Gain: '))
@@ -294,54 +294,55 @@ amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.9
                     '0.98': '0.69', '0.99': '0.68', '100': '0.67'}
 
 ema_window = 100
+
 while True:
     par = get_active(actives, operacao)
     valor_entrada = get_initial_amount(par, amount_by_payout)
-    minutos = 1
-    entrar = remaining_seconds(minutos)
-    entrar = 15
+    entrar = API.get_remaning(expiration)
 
-    if 0 < entrar < 30:
-        direcao = donchian_fractal(par, 60)
-        direcao = 'call'
+    direcao = donchian_fractal(par, 60)
 
-        if direcao:
-               print('Entrando com :', direcao, ' ativo ', par)
-               resultado, valor = entradas(par, valor_entrada, direcao, minutos)
+    if 30 < entrar < 30 and direcao:
+        print('Entrando com :', direcao, ' ativo ', par)
 
-               if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
+        resultado, valor = entradas(par, valor_entrada, direcao, minutos)
 
-                   lucro_total = 0
-                   lucro = 0
-                   perda = valor_entrada
-                   # Nivel
-                   for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
-                       # Mao
-                       for i2 in range(2):
-                           # Entrada
-                           while True:
-                               par = get_active(actives, operacao)
-                               capital_inicial += (lucro_total - perda)
-                               if lucro_total >= perda:
+        if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
+
+            lucro_total = 0
+            lucro = 0
+            perda = valor_entrada
+
+            # Nivel
+            for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
+                # Mao
+                for i2 in range(2):
+                    # Entrada
+                    while True:
+                        if lucro_total >= perda:
+                            break
+
+                        capital_inicial += round(lucro_total - perda, 2)
+
+                        stop(round(lucro_total - perda, 2), meta_diaria_ganho, meta_diaria_risco)
+
+                        entrar = API.get_remaning(expiration)
+                        direcao = donchian_fractal(par, 60)
+
+                        if 30 < entrar < 60 and direcao:
+                            print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
+
+
+                            resultado, lucro = entradas(par, round(perda / 2 + lucro, 2), direcao, minutos)
+
+
+                            if resultado:
+                                print(resultado, '/', lucro, ' ', perda, '\n')
+                                if resultado == 'win':
+                                    lucro_total += round(lucro, 2)
+                                elif resultado == 'loss':
+                                    lucro_total = 0
+                                    perda += round(perda / 2, 2)
+                                    time.sleep(expiration * 60)
                                     break
-
-                               stop(lucro_total - perda, meta_diaria_ganho, meta_diaria_risco)
-
-                               entrar = remaining_seconds(minutos)
-                               direcao = donchian_fractal(par, 60)
-                               direcao = 'call'
-                               entrar = 15
-
-                               if 0 < entrar < 30 and direcao:
-                                      print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
-                                      resultado, lucro = entradas(par, perda / 2 + lucro, direcao, minutos)
-                                      if resultado:
-                                         print(resultado, '/', lucro, ' ', perda, '\n')
-                                         if resultado == 'win':
-                                               lucro_total += lucro
-                                         elif resultado == 'loss':
-                                               lucro_total = 0
-                                               perda += round(perda / 2, 2)
-                                               break
-                                         time.sleep(0.1 * 60)
-    time.sleep(0.5 * 60)
+    time.sleep(expiration * 60)
