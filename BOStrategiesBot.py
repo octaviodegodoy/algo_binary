@@ -286,7 +286,6 @@ actives = ['EURUSD', 'EURUSD-OTC']
 mode = ['digital', 'binary']
 operacao = 0  # int('\n Deseja operar na\n  0 - Digital\n  1 - Binaria\n  :: '))
 
-
 n_ativos = 5
 alavancagem = 3
 
@@ -298,7 +297,6 @@ stop_loss = meta_diaria_risco  # float(input(' Indique o valor de Stop Loss: '))
 stop_gain = meta_diaria_ganho  # float(input(' Indique o valor de Stop Gain: '))
 
 expiration = 1
-
 
 amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.94', '0.78': '0.93', '0.79': '0.91',
                     '0.80': '0.90', '0.81': '0.88', '0.82': '0.87', '0.83': '0.85', '0.84': '0.84', '0.85': '0.83',
@@ -321,19 +319,14 @@ while True:
     direcao = donchian_fractal(par, 60)
 
     if datetime.now().minute == 15:
-        print(' Operando com par ', par, ' direcao ', direcao, ' valor ', valor_entrada, 'tempo restante ', entrar,
+        print('    Operando com par ', par, ' direcao ', direcao, ' valor ', valor_entrada, 'tempo restante ', entrar,
               '\n')
-
-    direcao = 'call'
-    entrar = 42
 
     if 30 < entrar < 60 and direcao:
 
-        print('Entrando com :', direcao, ' ativo ', par, ' valor ', valor_entrada)
+        print('    Entrando com :', direcao, ' ativo ', par, ' valor ', valor_entrada)
 
-        # resultado, valor = entradas(par, valor_entrada, direcao, expiration)
-        resultado = 'loss'
-        valor = 0
+        resultado, valor = entradas(par, valor_entrada, direcao, expiration)
 
         if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
@@ -356,15 +349,11 @@ while True:
 
                         entrar = API.get_remaning(expiration)
                         direcao = donchian_fractal(par, 60)
-                        entrar = 42
-                        direcao = 'call'
 
                         if 30 < entrar < 60 and direcao:
-                            print('   SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
+                            print('    SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
 
-                            # resultado, lucro = entradas(par, round(perda / 2 + lucro, 2), direcao, expiration)
-                            resultado = 'win'
-                            lucro = round(perda / 2 + lucro, 2) * 0.89
+                            resultado, lucro = entradas(par, round(perda / 2 + lucro, 2), direcao, expiration)
 
                             if resultado:
                                 print(resultado, '/', lucro, ' ', perda, '\n')
@@ -376,5 +365,5 @@ while True:
                                     time.sleep(0.3 * 60)
                                     break
         elif resultado == 'error':
-            print('Erro na operacao ', valor_entrada, ' resultado ', resultado)
+            print('    Erro na operacao ', valor_entrada, ' resultado ', resultado)
     time.sleep(0.3 * 60)
