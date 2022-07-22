@@ -98,8 +98,6 @@ def get_initial_amount(ativo, valor_por_payout, capital):
     initial_percent = round(float(valor_por_payout[str(payout)]) / 100, 2)
     capital = round(capital, 2)
     entrada = round(initial_percent * capital, 2)
-    print('Valor de entrada calculado ', entrada, 'porcentagem inicial ', initial_percent, ' capital inicial ',
-          capital)
     return entrada
 
 
@@ -257,6 +255,17 @@ def get_active(actives, operacao):
     return open_actives.get(modes[operacao])
 
 
+def save_gale(gale):
+    my_writing_file = open('gales_data.txt', 'w')
+    my_writing_file.write(gale)
+    my_writing_file.close()
+
+
+def retrieve_gale():
+    my_read_file = open("gales_data.txt", "r")
+    return my_read_file.read()
+
+
 print('''
 	     Simples MHI BOT
 	  youtube.com/c/IQCoding
@@ -336,6 +345,12 @@ while True:
 
             # Nivel
             for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
+
+                gale = retrieve_gale()
+
+                if i < gale:
+                    continue
+
                 # Mao
                 for i2 in range(2):
                     # Entrada
@@ -362,6 +377,7 @@ while True:
                                 elif resultado == 'loss':
                                     lucro_total = 0
                                     perda += round(perda / 2, 2)
+                                    save_gale(i)
                                     time.sleep(0.3 * 60)
                                     break
         elif resultado == 'error':
