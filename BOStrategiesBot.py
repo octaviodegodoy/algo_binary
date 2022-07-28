@@ -16,6 +16,7 @@ import time
 import sys
 import configparser
 import pandas as pd
+import pickle
 
 
 def is_asset_open(asset, all_opened_assets, mode):
@@ -255,13 +256,32 @@ def get_active(actives, operacao):
     return open_actives.get(modes[operacao])
 
 
-def save_gale(gale):
-    my_writing_file = open('gales_data.txt', 'w')
-    my_writing_file.write(gale)
-    my_writing_file.close()
+def save_gale(gale_level, amount):
+    file = open("gales_data.txt", "wb")
 
+    my_dict = {"gale_level": str(gale_level),
+               "amount_level": str(amount)}
 
-def retrieve_gale():
+    # serializing dictionary
+    pickle.dump(my_dict, file)
+
+    # closing the file
+    file.close()
+
+    # reading the data from the file
+    with open('gales_data.txt', 'rb') as handle:
+        data = handle.read()
+
+    print("Data type before reconstruction : ", type(data))
+
+    # reconstructing the data as dictionary
+    d = pickle.loads(data)
+    level = d['gale_level']
+    amount_level = d['amount_level']
+
+    print('Level ',level, 'amount ',amount_level)
+
+def get_gale():
     my_read_file = open("gales_data.txt", "r")
     return my_read_file.read()
 
@@ -276,6 +296,8 @@ config = configure()
 
 email = config['login']
 pwd = config['password']
+
+save_gale(gale_level=2, amount=21.6)
 
 # REAL / PRACTICE
 API = IQ_Option(email, pwd)
@@ -348,7 +370,7 @@ while True:
 
                 gale = retrieve_gale()
 
-                if i < gale:
+                if i < int(gale):
                     continue
 
                 # Mao
@@ -366,6 +388,7 @@ while True:
                         direcao = donchian_fractal(par, 60)
 
                         if 30 < entrar < 60 and direcao:
+
                             print('    SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
 
                             resultado, lucro = entradas(par, round(perda / 2 + lucro, 2), direcao, expiration)
@@ -374,10 +397,11 @@ while True:
                                 print(resultado, '/', lucro, ' ', perda, '\n')
                                 if resultado == 'win':
                                     lucro_total += round(lucro, 2)
+                                    save_gale(i + 1)
                                 elif resultado == 'loss':
                                     lucro_total = 0
                                     perda += round(perda / 2, 2)
-                                    save_gale(i)
+                                    save_gale(i + 1)
                                     time.sleep(0.3 * 60)
                                     break
         elif resultado == 'error':
