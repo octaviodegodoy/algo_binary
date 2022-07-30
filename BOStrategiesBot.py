@@ -256,12 +256,12 @@ def get_active(actives, operacao):
     return open_actives.get(modes[operacao])
 
 
-def save_gale(gale_level_0, gale_level_1, amount, gale_loop):
+def save_gale(gale_level_0, gale_level_1, amount, resultado):
     file = open("gales_data.pickle", "wb")
 
     my_dict = {"gale_level_0": gale_level_0,
                "gale_level_1": gale_level_1,
-               "gale_loop": gale_loop,
+               "resultado": resultado,
                "amount": amount}
 
     # serializing dictionary
@@ -355,7 +355,7 @@ while True:
 
     data_gale = get_gale()
 
-    if par and data_gale["gale_level_0"] == 0:
+    if par:
         valor_entrada = 4.0  # get_initial_amount(par, amount_by_payout, capital_atual)
 
     entrar = API.get_remaning(expiration)
@@ -370,7 +370,9 @@ while True:
         # if 30 < entrar < 60 and direcao:
 
         print('    Entrando com :', direcao, ' ativo ', par, ' valor ', valor_entrada)
-        resultado, valor = entradas(par, valor_entrada, direcao, expiration)
+
+        if data_gale["gale_level_0"] == 0:
+            resultado, valor = entradas(par, valor_entrada, direcao, expiration)
 
         if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
