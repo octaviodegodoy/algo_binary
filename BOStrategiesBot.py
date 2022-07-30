@@ -348,14 +348,15 @@ while True:
 
     capital_atual = capital_por_ativo(n_ativos, alavancagem)
     par = get_active(actives, operacao)
+    data_gale = get_gale()
     loop_level_0 = int(config['levels']) - int(data_gale["gale_level_0"])
     if loop_level_0 == 0:
         reset_gale()
 
     data_gale = get_gale()
 
-    if par:
-        valor_entrada = data_gale["amount"]  # get_initial_amount(par, amount_by_payout, capital_atual)
+    if par and data_gale["gale_level_0"] == 0:
+        valor_entrada = 4.0  # get_initial_amount(par, amount_by_payout, capital_atual)
 
     entrar = API.get_remaning(expiration)
     direcao = donchian_fractal(par, 60)
@@ -411,13 +412,13 @@ while True:
                                 if resultado == 'win':
                                     lucro_total += round(lucro, 2)
                                     save_gale((i + 1), (i2 + 1), (perda / 2 + lucro),
-                                                  ((i + 1) < int(config['levels'])))
+                                              ((i + 1) < int(config['levels'])))
                                     data_gale = get_gale()
                                 elif resultado == 'loss':
                                     lucro_total = 0
                                     perda += round(perda / 2, 2)
                                     save_gale((i + 1), (i2 + 1), (perda / 2 + lucro),
-                                                  ((i + 1) < int(config['levels'])))
+                                              ((i + 1) < int(config['levels'])))
                                     data_gale = get_gale()
                                     time.sleep(0.3 * 60)
                                     break
