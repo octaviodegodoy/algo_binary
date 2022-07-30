@@ -281,6 +281,20 @@ def get_gale():
     return pickle.loads(data)
 
 
+def reset_gale():
+    file = open("gales_data.pickle", "wb")
+    my_dict = {"gale_level_0": str(config["levels"]),
+               "gale_level_1": str(0),
+               "gale_loop": False,
+               "amount": str(4)}
+
+    # serializing dictionary
+    pickle.dump(my_dict, file)
+
+    # closing the file
+    file.close()
+
+
 print('''
 	     Simples MHI BOT
 	  youtube.com/c/IQCoding
@@ -288,6 +302,7 @@ print('''
 ''')
 
 config = configure()
+reset_gale()
 
 email = config['login']
 pwd = config['password']
@@ -335,7 +350,7 @@ while True:
     par = get_active(actives, operacao)
 
     if par:
-        valor_entrada = get_initial_amount(par, amount_by_payout, capital_atual)
+        valor_entrada = 4.00 #get_initial_amount(par, amount_by_payout, capital_atual)
     else:
         continue
 
@@ -356,7 +371,7 @@ while True:
         if not data_gale["gale_loop"]:
             resultado, valor = entradas(par, valor_entrada, direcao, expiration)
 
-        if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
+        if data_gale["gale_loop"] and resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
             lucro_total = 0
             lucro = 0
@@ -378,7 +393,7 @@ while True:
                     # Entrada
                     while True:
                         if lucro_total >= perda:
-                            save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2), False)
+                            save_gale(int(config['levels']), 0, valor_entrada, False)
                             break
 
                         # capital_inicial += round(lucro_total - perda, 2)
@@ -400,11 +415,21 @@ while True:
                                 print(resultado, '/', lucro, ' ', perda, '\n')
                                 if resultado == 'win':
                                     lucro_total += round(lucro, 2)
-                                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2), True)
+                                    if (i + 1) > int(config['levels']):
+                                        save_gale(
+                                            int(config['levels'], 0, valor_entrada, ((i + 1) > int(config['levels']))))
+                                    else:
+                                        save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2),
+                                                  ((i + 1) > int(config['levels'])))
                                 elif resultado == 'loss':
                                     lucro_total = 0
                                     perda += round(perda / 2, 2)
-                                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2), True)
+                                    if (i + 1) > int(config['levels']):
+                                        save_gale(
+                                            int(config['levels'], 0, valor_entrada, ((i + 1) > int(config['levels']))))
+                                    else:
+                                        save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2),
+                                                  ((i + 1) > int(config['levels'])))
                                     time.sleep(0.3 * 60)
                                     break
         elif resultado == 'error':
