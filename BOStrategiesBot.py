@@ -348,6 +348,10 @@ while True:
 
     capital_atual = capital_por_ativo(n_ativos, alavancagem)
     par = get_active(actives, operacao)
+    loop_level_0 = int(config['levels']) - int(data_gale["gale_level_0"])
+    if loop_level_0 == 0:
+        reset_gale()
+
     data_gale = get_gale()
 
     if par:
@@ -366,12 +370,6 @@ while True:
 
         print('    Entrando com :', direcao, ' ativo ', par, ' valor ', valor_entrada)
         resultado, valor = entradas(par, valor_entrada, direcao, expiration)
-
-        loop_level_0 = int(config['levels']) - int(data_gale["gale_level_0"])
-        if loop_level_0 == 0:
-            reset_gale()
-
-        data_gale = get_gale()
 
         if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
