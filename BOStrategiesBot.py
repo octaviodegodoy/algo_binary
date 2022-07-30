@@ -256,11 +256,13 @@ def get_active(actives, operacao):
     return open_actives.get(modes[operacao])
 
 
-def save_gale(gale_level, amount):
-    file = open("gales_data.txt", "wb")
+def save_gale(gale_level_0, gale_level_1, amount, gale_loop):
+    file = open("gales_data.pickle", "wb")
 
-    my_dict = {"gale_level": str(gale_level),
-               "amount_level": str(amount)}
+    my_dict = {"gale_level_0": str(gale_level_0),
+               "gale_level_1": str(gale_level_1),
+               "gale_loop": gale_loop,
+               "amount": str(amount)}
 
     # serializing dictionary
     pickle.dump(my_dict, file)
@@ -268,22 +270,15 @@ def save_gale(gale_level, amount):
     # closing the file
     file.close()
 
+
+def get_gale():
     # reading the data from the file
-    with open('gales_data.txt', 'rb') as handle:
+    with open('gales_data.pickle', 'rb') as handle:
         data = handle.read()
 
     print("Data type before reconstruction : ", type(data))
 
-    # reconstructing the data as dictionary
-    d = pickle.loads(data)
-    level = d['gale_level']
-    amount_level = d['amount_level']
-
-    print('Level ',level, 'amount ',amount_level)
-
-def get_gale():
-    my_read_file = open("gales_data.txt", "r")
-    return my_read_file.read()
+    return pickle.loads(data)
 
 
 print('''
@@ -296,8 +291,6 @@ config = configure()
 
 email = config['login']
 pwd = config['password']
-
-save_gale(gale_level=2, amount=21.6)
 
 # REAL / PRACTICE
 API = IQ_Option(email, pwd)
@@ -353,11 +346,15 @@ while True:
         print('    Operando com par ', par, ' direcao ', direcao, ' valor ', valor_entrada, 'tempo restante ', entrar,
               '\n')
 
-    if 30 < entrar < 60 and direcao:
+    data_gale = get_gale()
+
+    direcao = 'call'
+    if direcao:
+        # if 30 < entrar < 60 and direcao:
 
         print('    Entrando com :', direcao, ' ativo ', par, ' valor ', valor_entrada)
-
-        resultado, valor = entradas(par, valor_entrada, direcao, expiration)
+        if not data_gale["gale_loop"]:
+            resultado, valor = entradas(par, valor_entrada, direcao, expiration)
 
         if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
 
@@ -368,16 +365,20 @@ while True:
             # Nivel
             for i in range(int(config['levels']) if int(config['levels']) > 0 else 1):
 
-                gale = retrieve_gale()
+                if int(data_gale["gale_level_0"]) == int(config['levels']):
+                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2), False)
 
-                if i < int(gale):
+                if i < int(data_gale["gale_level_0"]):
                     continue
 
                 # Mao
                 for i2 in range(2):
+                    if i < int(data_gale["gale_level_1"]):
+                        continue
                     # Entrada
                     while True:
                         if lucro_total >= perda:
+                            save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2), False)
                             break
 
                         # capital_inicial += round(lucro_total - perda, 2)
@@ -387,21 +388,23 @@ while True:
                         entrar = API.get_remaning(expiration)
                         direcao = donchian_fractal(par, 60)
 
-                        if 30 < entrar < 60 and direcao:
+                        direcao = 'call'
+                        if direcao:
+                            # if 30 < entrar < 60 and direcao:
 
                             print('    SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
 
-                            resultado, lucro = entradas(par, round(perda / 2 + lucro, 2), direcao, expiration)
+                            resultado, lucro = entradas(par, data_gale["amount"], direcao, expiration)
 
                             if resultado:
                                 print(resultado, '/', lucro, ' ', perda, '\n')
                                 if resultado == 'win':
                                     lucro_total += round(lucro, 2)
-                                    save_gale(i + 1)
+                                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2), True)
                                 elif resultado == 'loss':
                                     lucro_total = 0
                                     perda += round(perda / 2, 2)
-                                    save_gale(i + 1)
+                                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro, 2), True)
                                     time.sleep(0.3 * 60)
                                     break
         elif resultado == 'error':
