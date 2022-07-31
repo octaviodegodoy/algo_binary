@@ -256,12 +256,12 @@ def get_active(actives, operacao):
     return open_actives.get(modes[operacao])
 
 
-def save_gale(gale_level_0, gale_level_1, amount, resultado):
+def save_gale(gale_level_0, gale_level_1, amount, result):
     file = open("gales_data.pickle", "wb")
 
     my_dict = {"gale_level_0": gale_level_0,
                "gale_level_1": gale_level_1,
-               "resultado": resultado,
+               "result": result,
                "amount": amount}
 
     # serializing dictionary
@@ -285,7 +285,7 @@ def reset_gale():
     file = open("gales_data.pickle", "wb")
     my_dict = {"gale_level_0": 0,
                "gale_level_1": 0,
-               "gale_loop": False,
+               "result": 'win',
                "amount": 4.00}
 
     # serializing dictionary
@@ -350,6 +350,7 @@ while True:
     par = get_active(actives, operacao)
     data_gale = get_gale()
     loop_level_0 = int(config['levels']) - int(data_gale["gale_level_0"])
+    in_loop = 0 < int(data_gale["gale_level_0"]) < int(config['levels'])
     if loop_level_0 == 0:
         reset_gale()
 
@@ -373,8 +374,9 @@ while True:
 
         if data_gale["gale_level_0"] == 0:
             resultado, valor = entradas(par, valor_entrada, direcao, expiration)
+            data_gale["result"] = resultado
 
-        if resultado == 'loss' and config['sorosgale'] == 'S':  # SorosGale
+        if in_loop or (resultado == 'loss' and config['sorosgale'] == 'S'):  # SorosGale
 
             lucro_total = 0
             lucro = 0
@@ -413,14 +415,12 @@ while True:
                                 print(resultado, '/', lucro, ' ', perda, '\n')
                                 if resultado == 'win':
                                     lucro_total += round(lucro, 2)
-                                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro),
-                                              ((i + 1) < int(config['levels'])))
+                                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro), resultado)
                                     data_gale = get_gale()
                                 elif resultado == 'loss':
                                     lucro_total = 0
                                     perda += round(perda / 2, 2)
-                                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro),
-                                              ((i + 1) < int(config['levels'])))
+                                    save_gale((i + 1), (i2 + 1), (perda / 2 + lucro), resultado)
                                     data_gale = get_gale()
                                     time.sleep(0.3 * 60)
                                     break
