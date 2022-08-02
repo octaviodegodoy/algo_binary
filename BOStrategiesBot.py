@@ -423,14 +423,15 @@ while True:
                                 print(resultado, '/', lucro, ' ', perda, '\n')
                                 if resultado == 'win':
                                     lucro_total += round(lucro, 2)
-                                    save_gale(data_gale["gale_level_0"] + 1, data_gale["gale_level_1"] + 1, (perda / 2 + lucro), resultado)
+                                    save_gale(data_gale["gale_level_0"] + 1, data_gale["gale_level_1"] + 1, data_gale['amount'], resultado)
+                                    next_amount = data_gale['amount']/2 + lucro
                                     data_gale = get_gale()
                                 elif resultado == 'loss':
                                     lucro_total = 0
                                     data_gale['amount'] += data_gale['amount']/2
                                     save_gale((data_gale['gale_level_0'] + 1) % int(config['levels']), 2, data_gale['amount'], resultado)
                                     data_gale = get_gale()
-                                    next_amount = data_gale['amount']/2
+                                    next_amount = data_gale['amount']/2 + lucro
                                     #time.sleep(0.3 * 60)
                                     break
         elif resultado == 'error':
