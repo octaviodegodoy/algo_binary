@@ -91,7 +91,7 @@ def get_balance():
 def capital_por_ativo(num_ativos, alavancagem):
     capital = get_balance()
     capital_ativo = capital / num_ativos
-    return round(capital_ativo * alavancagem, 2)
+    return capital_ativo * alavancagem
 
 
 def get_initial_amount(ativo, valor_por_payout, capital):
@@ -256,12 +256,13 @@ def get_active(actives, operacao):
     return open_actives.get(modes[operacao])
 
 
-def save_gale(gale_level_0, gale_level_1, amount, result):
+def save_gale(gale_level_0, gale_level_1, loop, lucro, amount):
     file = open("gales_data.pickle", "wb")
 
     my_dict = {"gale_level_0": gale_level_0,
                "gale_level_1": gale_level_1,
-               "result": result,
+               "loop": loop,
+               "lucro": lucro,
                "amount": amount}
 
     # serializing dictionary
@@ -276,8 +277,6 @@ def get_gale():
     with open('gales_data.pickle', 'rb') as handle:
         data = handle.read()
 
-    print("Data type before reconstruction : ", type(data))
-
     return pickle.loads(data)
 
 
@@ -286,8 +285,9 @@ def reset_gale():
 
     my_dict = {"gale_level_0": 0,
                "gale_level_1": 0,
-               "result": 'loss',
-               "amount": 4.0}
+               "loop": False,
+               "lucro": 0,
+               "amount": 4.00}
 
     # serializing dictionary
     pickle.dump(my_dict, file)
@@ -303,7 +303,7 @@ print('''
 ''')
 
 config = configure()
-"""
+
 email = config['login']
 pwd = config['password']
 
@@ -318,94 +318,76 @@ else:
     print(' Erro ao conectar')
     # input('\n\n Aperte enter para sair')
     sys.exit()
-"""
+
 tipo_mhi = int(1)  # int(input(' Deseja operar a favor da\n  1 - Minoria\n  2 - Maioria\n  :: '))
 
 actives = ['EURUSD', 'EURUSD-OTC']
 mode = ['digital', 'binary']
 operacao = 0  # int('\n Deseja operar na\n  0 - Digital\n  1 - Binaria\n  :: '))
 
-n_ativos = 5
-alavancagem = 3
+n_ativos = 1
+alavancagem = 1
 
-#capital_inicial = capital_por_ativo(n_ativos, alavancagem)
-#meta_diaria_ganho = round(float(3.5 / 100) * capital_inicial, 2)
-#meta_diaria_risco = round(float(3.0 / 100) * capital_inicial, 2)
+capital_inicial = capital_por_ativo(n_ativos, alavancagem)
+meta_diaria_ganho = float(3.5 / 100) * capital_inicial
+meta_diaria_risco = float(3.0 / 100) * capital_inicial
 
-stop_loss = 10000 #meta_diaria_risco  # float(input(' Indique o valor de Stop Loss: '))
-stop_gain = 10000 #meta_diaria_ganho  # float(input(' Indique o valor de Stop Gain: '))
+stop_loss = 10000  # meta_diaria_risco  # float(input(' Indique o valor de Stop Loss: '))
+stop_gain = 10000  # meta_diaria_ganho  # float(input(' Indique o valor de Stop Gain: '))
 
 expiration = 1
-
-amount_by_payout = {'0.74': '0.99', '0.75': '0.97', '0.76': '0.96', '0.77': '0.94', '0.78': '0.93', '0.79': '0.91',
-                    '0.80': '0.90', '0.81': '0.88', '0.82': '0.87', '0.83': '0.85', '0.84': '0.84', '0.85': '0.83',
-                    '0.86': '0.82', '0.87': '0.80', '0.88': '0.79', '0.89': '0.78', '0.90': '0.77', '0.91': '0.76',
-                    '0.92': '0.75', '0.93': '0.74', '0.94': '0.73', '0.95': '0.72', '0.96': '0.71', '0.97': '0.70',
-                    '0.98': '0.69', '0.99': '0.68', '100': '0.67'}
 
 ema_window = 100
 
 while True:
 
-   # capital_atual = capital_por_ativo(n_ativos, alavancagem)
-   # par = get_active(actives, operacao)
+    capital_atual = capital_por_ativo(n_ativos, alavancagem)
+    par = get_active(actives, operacao)
     data_gale = get_gale()
-    loop_level_0 = int(config['levels']) - int(data_gale["gale_level_0"])
     in_loop = 0 < int(data_gale["gale_level_0"]) < int(config['levels'])
-    if loop_level_0 == 0:
-        reset_gale()
-
-    data_gale = get_gale()
-    par = 'EURUSD'
 
     if par:
         valor_entrada = 4.0  # get_initial_amount(par, amount_by_payout, capital_atual)
 
-  #  entrar = API.get_remaning(expiration)
-  #  direcao = donchian_fractal(par, 60)
+    entrar = API.get_remaning(expiration)
+    direcao = donchian_fractal(par, 60)
 
     if datetime.now().minute == 15:
         print('    Operando com par ', par, ' direcao ', direcao, ' valor ', valor_entrada, 'tempo restante ', entrar,
               '\n')
-
     direcao = 'call'
     if direcao:
         # if 30 < entrar < 60 and direcao:
 
         print('    Entrando com :', direcao, ' ativo ', par, ' valor ', valor_entrada)
 
-        if data_gale["gale_level_0"] == 0:
-            reset_gale()
-            #resultado, valor = entradas(par, valor_entrada, direcao, expiration)
-            resultado = 'loss'
-            valor = 0
-            data_gale["result"] = resultado
+        # resultado, valor = entradas(par, valor_entrada, direcao, expiration)
 
-        if in_loop or (resultado == 'loss' and config['sorosgale'] == 'S'):  # SorosGale
+        resultado = 'loss'
+        valor = 0
 
-            lucro_total = 0
+        if data_gale['loop'] or (resultado == 'loss'):  # SorosGale
+
             lucro = 0
-            perda = valor_entrada
-            soma_perda = 0
-
+            perda_dia = valor_entrada
 
             # Nivel
-            for i in range(int(config['levels']) - data_gale['gale_level_0']):
+            for i in range(int(config['levels']) - (data_gale['gale_level_0'] + 1)):
                 data_gale['gale_level_1'] = 0
+
                 # Mao
-                for i2 in range(2 - data_gale["gale_level_1"]):
+                for i2 in range(2 - (data_gale["gale_level_1"] + 1)):
+
+                    stop(perda_dia, meta_diaria_ganho, meta_diaria_risco)
+
+                    while True:
+                        entrar = API.get_remaning(expiration)
+                        direcao = donchian_fractal(par, 60)
 
                         # Entrada
-                        if lucro_total >= perda:
+                        if data_gale["lucro"] >= data_gale["amount"]:
                             reset_gale()
                             break
-
-                        # capital_inicial += round(lucro_total - perda, 2)
-
-                        #stop(round(lucro_total - perda, 2), meta_diaria_ganho, meta_diaria_risco)
-
-                        #entrar = API.get_remaning(expiration)
-                        #direcao = donchian_fractal(par, 60)
 
                         direcao = 'call'
                         if direcao:
@@ -413,27 +395,33 @@ while True:
 
                             print('    SOROSGALE NIVEL ' + str(i + 1) + ' | MAO ' + str(i2 + 1) + ' | \n', end=' ')
 
-                            #resultado, lucro = entradas(par, data_gale["amount"], direcao, expiration)
-                            data_gale = get_gale()
-                            amount = data_gale['amount']
+                            # resultado, lucro = entradas(par, data_gale['amount'] / 2 + data_gale["lucro"], direcao, expiration)
                             resultado = 'loss'
-                            lucro = 0
+                            valor = 0
 
                             if resultado:
-                                print(resultado, '/', lucro, ' ', perda, '\n')
+                                print(resultado, '/', lucro, ' ', data_gale['amount'], '\n')
                                 if resultado == 'win':
-                                    lucro_total += round(lucro, 2)
-                                    save_gale(data_gale["gale_level_0"] + 1, data_gale["gale_level_1"] + 1, data_gale['amount'], resultado)
-                                    next_amount = data_gale['amount']/2 + lucro
+                                    data_gale["lucro"] += lucro
+                                    save_gale((data_gale['gale_level_0'] + 1) % int(config['levels']),
+                                              (data_gale['gale_level_1'] + 1) % 2,
+                                              True, data_gale["lucro"], data_gale['amount'])
                                     data_gale = get_gale()
+                                    if data_gale['gale_level_0'] + 1 > int(config['levels']):
+                                        reset_gale()
                                 elif resultado == 'loss':
-                                    lucro_total = 0
-                                    data_gale['amount'] += data_gale['amount']/2
-                                    save_gale((data_gale['gale_level_0'] + 1) % int(config['levels']), 2, data_gale['amount'], resultado)
+                                    data_gale["lucro"] = 0
+                                    perda_dia += perda_dia / 2
+                                    data_gale['amount'] += data_gale['amount'] / 2
+                                    save_gale((data_gale['gale_level_0'] + 1) % int(config['levels']),
+                                              (data_gale['gale_level_1'] + 1) % 2,
+                                              True, data_gale["lucro"], data_gale['amount'])
                                     data_gale = get_gale()
-                                    next_amount = data_gale['amount']/2 + lucro
-                                    #time.sleep(0.3 * 60)
+                                    if data_gale['gale_level_0'] + 1 == int(config['levels']):
+                                        reset_gale()
+                                    # time.sleep(0.3 * 60)
                                     break
+                    break
         elif resultado == 'error':
             print('    Erro na operacao ', valor_entrada, ' resultado ', resultado)
-    #time.sleep(0.3 * 60)
+    time.sleep(0.3 * 60)
